@@ -52,7 +52,7 @@ const OauthLogin = () => {
       const checkData = await checkRes.json();
 
       if (!checkRes.ok || !checkData.success) {
-        setError(checkData.error || "Email is not authorized.");
+        setError(checkData.error || "Invalid credentials.");
         return;
       }
 

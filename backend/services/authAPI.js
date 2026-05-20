@@ -511,7 +511,7 @@ router.post("/verify-otp-login", async (req, res) => {
 
       return res.status(403).json({
         success: false,
-        message: "User not allowed.",
+        message: "Invalid credentials.",
       });
     }
 
