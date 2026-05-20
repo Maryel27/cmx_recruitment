@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require("../config/dbconfig");
 const { requireAuth } = require("../middleware/authMiddleware");
 
-router.get("/job_postings", async (req, res) => {
+router.get("/job_postings", requireAuth, async (req, res) => {
   // console.log("📡 [GET] /api/job_postings");
   try {
     const [rows] = await db.execute(`
@@ -17,7 +17,7 @@ router.get("/job_postings", async (req, res) => {
   }
 });
 
-router.get("/job_postings/max-id", async (req, res) => {
+router.get("/job_postings/max-id", requireAuth, async (req, res) => {
   console.log("📡 [GET] /api/job_postings/max-id");
   try {
     const [rows] = await db.execute(`
@@ -31,7 +31,7 @@ router.get("/job_postings/max-id", async (req, res) => {
   }
 });
 
-router.post("/job_postings", async (req, res) => {
+router.post("/job_postings", requireAuth, async (req, res) => {
   const now = new Date();
   console.log("📡 [POST] /api/job_postings");
   console.log("📥 Received POST body:", req.body);
@@ -85,7 +85,7 @@ router.post("/job_postings", async (req, res) => {
   }
 });
 
-router.put("/job_postings/:id", async (req, res) => {
+router.put("/job_postings/:id", requireAuth, async (req, res) => {
   console.log(`📡 [PUT] /api/job_postings/${req.params.id}`);
   const { id } = req.params;
   let {

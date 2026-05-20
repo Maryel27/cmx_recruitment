@@ -26,8 +26,18 @@ const authToken = (req, res, next) => {
   }
 };
 
+const allowedStatuses = ["Active"];
+
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.user) {
+  const user = req.session?.user;
+
+  if (
+    !user ||
+    !user.userEmail ||
+    !user.fullName ||
+    !user.userLevel ||
+    !allowedStatuses.includes(user.userStatus)
+  ) {
     return res.status(401).json({
       success: false,
       message: "Unauthorized",

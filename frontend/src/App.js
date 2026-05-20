@@ -50,8 +50,9 @@ function RequireAuth({ isAuthed }) {
 */
 function RequireAdminOrHigher({ user }) {
   const location = useLocation();
+  const allowedUser = ["Admin", "Super Admin", "QA Admin"];
 
-  if (user?.userLevel === "User") {
+  if (user?.userLevel === "User" || !allowedUser.includes(user.userLevel)) {
     return <AccessDenied />;
   }
 

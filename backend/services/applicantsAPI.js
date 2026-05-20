@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../config/dbconfig");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { upload, s3 } = require("../utils/helpers");
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const fs = require("fs");
@@ -169,6 +169,7 @@ router.post(
   "/addapplicants",
   upload.single("resume"),
   requireAuth,
+  requireRole("Admin"),
   async (req, res) => {
     try {
       // Fetch the maximum ID from the database
@@ -296,6 +297,7 @@ router.post(
 
 router.put(
   "/editapplicant",
+  requireRole("Admin"),
   upload.single("resume"),
   requireAuth,
   async (req, res) => {
@@ -375,76 +377,81 @@ router.put(
   },
 );
 
-router.put("/updateapplicant", upload.single("resume"), async (req, res) => {
-  const data = req.body;
+router.put(
+  "/updateapplicant",
+  requireAuth,
+  requireRole("Admin"),
+  upload.single("resume"),
+  async (req, res) => {
+    const data = req.body;
 
-  console.log("Incoming update data:", data);
+    console.log("Incoming update data:", data);
 
-  // ✅ FIX 5 — preserve empty strings, only default undefined
-  const normalizeText = (v) => (v === undefined ? "" : v);
+    // ✅ FIX 5 — preserve empty strings, only default undefined
+    const normalizeText = (v) => (v === undefined ? "" : v);
 
-  let resumeFilename = normalizeText(data.candidatecvattachment);
+    let resumeFilename = normalizeText(data.candidatecvattachment);
 
-  if (req.file) {
-    const uniqueFilename = `${data.id}-${req.file.originalname}`;
-    const s3Params = {
-      Bucket: BUCKET_NAME,
-      Key: `resumes/${uniqueFilename}`,
-      Body: fs.createReadStream(req.file.path),
-      ContentType: req.file.mimetype,
-      ACL: "private",
+    if (req.file) {
+      const uniqueFilename = `${data.id}-${req.file.originalname}`;
+      const s3Params = {
+        Bucket: BUCKET_NAME,
+        Key: `resumes/${uniqueFilename}`,
+        Body: fs.createReadStream(req.file.path),
+        ContentType: req.file.mimetype,
+        ACL: "private",
+      };
+
+      try {
+        await s3.upload(s3Params).promise();
+        resumeFilename = uniqueFilename;
+        fs.unlinkSync(req.file.path);
+      } catch (error) {
+        console.error("Error uploading resume to S3:", error);
+        return res.status(500).json({ error: "Failed to upload resume" });
+      }
+    }
+
+    // Override accountCode based on department
+    switch (data.department) {
+      case "Accounting":
+        data.accountCode = "CMX-ACC-01";
+        break;
+      case "DREAM":
+        data.accountCode = "CMX-DRM-08";
+        break;
+      case "Facilities":
+        data.accountCode = "CMX-FAC-02";
+        break;
+      case "GSD":
+        data.accountCode = "CMX-GSD-03";
+        break;
+      case "HRAD":
+        data.accountCode = "CMX-HRD-04";
+        break;
+      case "IT":
+        data.accountCode = "CMX-ITD-05";
+        break;
+      case "Ops Support":
+        data.accountCode = "CMX-OPS-07";
+        break;
+      case "Recruitment":
+        data.accountCode = "CMX-REC-06";
+        break;
+      default:
+        break;
+    }
+
+    // ✅ Dates are CORRECTLY handled as NULL
+    const normalizeDate = (date) => {
+      if (!date || date.trim() === "") return null;
+      const parsedDate = new Date(date);
+      return isNaN(parsedDate.getTime())
+        ? "1900-01-01"
+        : parsedDate.toISOString().split("T")[0];
     };
 
-    try {
-      await s3.upload(s3Params).promise();
-      resumeFilename = uniqueFilename;
-      fs.unlinkSync(req.file.path);
-    } catch (error) {
-      console.error("Error uploading resume to S3:", error);
-      return res.status(500).json({ error: "Failed to upload resume" });
-    }
-  }
-
-  // Override accountCode based on department
-  switch (data.department) {
-    case "Accounting":
-      data.accountCode = "CMX-ACC-01";
-      break;
-    case "DREAM":
-      data.accountCode = "CMX-DRM-08";
-      break;
-    case "Facilities":
-      data.accountCode = "CMX-FAC-02";
-      break;
-    case "GSD":
-      data.accountCode = "CMX-GSD-03";
-      break;
-    case "HRAD":
-      data.accountCode = "CMX-HRD-04";
-      break;
-    case "IT":
-      data.accountCode = "CMX-ITD-05";
-      break;
-    case "Ops Support":
-      data.accountCode = "CMX-OPS-07";
-      break;
-    case "Recruitment":
-      data.accountCode = "CMX-REC-06";
-      break;
-    default:
-      break;
-  }
-
-  // ✅ Dates are CORRECTLY handled as NULL
-  const normalizeDate = (date) => {
-    if (!date || date.trim() === "") return null;
-    const parsedDate = new Date(date);
-    return isNaN(parsedDate.getTime())
-      ? "1900-01-01"
-      : parsedDate.toISOString().split("T")[0];
-  };
-
-  const query = `
+    const query = `
     UPDATE 1001_cmx_appdata_recruitment_database_ph.db_cmxph_applicant_database
     SET 
       department = ?, 
@@ -478,56 +485,57 @@ router.put("/updateapplicant", upload.single("resume"), async (req, res) => {
     WHERE applicationid = ?;
   `;
 
-  const values = [
-    normalizeText(data.department),
-    normalizeText(data.roleProfiled),
-    normalizeText(data.profiledForAccount) || "N/A",
-    normalizeText(data.lob) || "N/A",
-    normalizeText(data.task) || "N/A",
-    data.accountCode,
+    const values = [
+      normalizeText(data.department),
+      normalizeText(data.roleProfiled),
+      normalizeText(data.profiledForAccount) || "N/A",
+      normalizeText(data.lob) || "N/A",
+      normalizeText(data.task) || "N/A",
+      data.accountCode,
 
-    normalizeDate(data.initialInterviewDate),
-    data.initialInterviewStatus || null,
+      normalizeDate(data.initialInterviewDate),
+      data.initialInterviewStatus || null,
 
-    normalizeDate(data.skillsAssessmentDate),
-    data.skillsAssessmentStatus || null,
+      normalizeDate(data.skillsAssessmentDate),
+      data.skillsAssessmentStatus || null,
 
-    normalizeDate(data.clientInterviewDate),
-    data.clientInterviewStatus || null,
+      normalizeDate(data.clientInterviewDate),
+      data.clientInterviewStatus || null,
 
-    normalizeDate(data.finalInterviewDate),
-    data.finalInterviewStatus || null,
+      normalizeDate(data.finalInterviewDate),
+      data.finalInterviewStatus || null,
 
-    normalizeDate(data.jobOfferDate),
-    data.jobOfferStatus || null,
+      normalizeDate(data.jobOfferDate),
+      data.jobOfferStatus || null,
 
-    normalizeDate(data.onboardingDate),
-    data.onboardingStatus || null,
+      normalizeDate(data.onboardingDate),
+      data.onboardingStatus || null,
 
-    normalizeDate(data.endorsementDateTime),
-    data.endorsementStatus || null,
+      normalizeDate(data.endorsementDateTime),
+      data.endorsementStatus || null,
 
-    normalizeDate(data.dateUpdated),
-    data.overallStatus || null,
+      normalizeDate(data.dateUpdated),
+      data.overallStatus || null,
 
-    data.fallout || null,
-    normalizeDate(data.falloutDate),
+      data.fallout || null,
+      normalizeDate(data.falloutDate),
 
-    normalizeText(data.remarks),
-    normalizeText(data.recruiter),
-    normalizeText(data.workSetup),
+      normalizeText(data.remarks),
+      normalizeText(data.recruiter),
+      normalizeText(data.workSetup),
 
-    resumeFilename,
-    data.applicationid,
-  ];
+      resumeFilename,
+      data.applicationid,
+    ];
 
-  try {
-    await db.query(query, values);
-    res.status(200).json({ success: true });
-  } catch (error) {
-    console.error("Error updating applicant:", error);
-    res.status(500).json({ error: "Database error" });
-  }
-});
+    try {
+      await db.query(query, values);
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Error updating applicant:", error);
+      res.status(500).json({ error: "Database error" });
+    }
+  },
+);
 
 module.exports = router;

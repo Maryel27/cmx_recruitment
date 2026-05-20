@@ -16,7 +16,7 @@ const s3 = new AWS.S3({
 
 const BUCKET_NAME = process.env.BUCKET_NAME; // Replace with your S3 bucket name
 
-router.get("/media/:s3Key", async (req, res) => {
+router.get("/media/:s3Key", requireAuth, async (req, res) => {
   const { s3Key } = req.params;
 
   if (!s3Key) {
@@ -38,7 +38,7 @@ router.get("/media/:s3Key", async (req, res) => {
   }
 });
 
-router.get("/voice/:fileName", async (req, res) => {
+router.get("/voice/:fileName", requireAuth, async (req, res) => {
   try {
     const { fileName } = req.params;
 
@@ -57,7 +57,7 @@ router.get("/voice/:fileName", async (req, res) => {
   }
 });
 
-router.get("/resume/:filename", async (req, res) => {
+router.get("/resume/:filename", requireAuth, async (req, res) => {
   const { filename } = req.params;
 
   if (!filename) {
