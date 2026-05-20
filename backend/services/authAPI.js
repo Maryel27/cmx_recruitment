@@ -238,7 +238,7 @@ router.post("/send-otp", async (req, res) => {
 
       return res.status(400).json({
         success: false,
-        message: "User not allowed.",
+        message: "Invalid credentials",
       });
     }
 

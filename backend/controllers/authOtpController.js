@@ -214,7 +214,7 @@ const checkEmail = async (req, res) => {
       `SELECT user_email, user_first_name, user_last_name, user_full_name, id
        FROM 0000_cmx_appdata_appusers.db_cmx_appusers_recruitment_ph
        WHERE user_email = ? LIMIT 1`,
-      [email]
+      [email],
     );
 
     conn.release();
@@ -222,7 +222,7 @@ const checkEmail = async (req, res) => {
     if (userRows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: "Email is not registered.",
+        error: "Invalid credentials",
       });
     }
 
@@ -312,7 +312,7 @@ const verifyOtpLogin = async (req, res) => {
       `SELECT id, user_email, user_first_name, user_last_name, user_full_name, user_access_level
        FROM 0000_cmx_appdata_appusers.db_cmx_appusers_recruitment_ph
        WHERE user_email = ? LIMIT 1`,
-      [email]
+      [email],
     );
 
     conn.release();
@@ -342,7 +342,7 @@ const verifyOtpLogin = async (req, res) => {
       process.env.JWT_SECRET || "your_fallback_secret",
       {
         expiresIn: "12h",
-      }
+      },
     );
 
     // ✅ Return user info + token

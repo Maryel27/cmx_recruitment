@@ -85,6 +85,7 @@ const BUCKET_NAME = process.env.BUCKET_NAME; // Replace with your S3 bucket name
 // Middleware
 app.set("trust proxy", 1);
 app.use(helmet());
+
 app.use(
   cors({
     origin: [FRONTEND_URL],
